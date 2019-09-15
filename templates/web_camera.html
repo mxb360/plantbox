@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>微生态管家</title>
+    </head>
+    <body style="background-color: aqua">
+        <div style="background-color: aqua">
+            <h1 align="center">微生态管家</h1>
+            <p align="center">Electronic Ecological Estanciero</p>
+            <hr/>
+        </div>
+        <div style="background-color: aquamarine">
+            <p align="center">鱼缸生态监控</p>
+            <div style="height: 400px" align="center">
+                <img src="/stream/{{ user_id }}" alt="视频加载失败！（浏览器不支持 或者是树莓派掉线 也有可能网络太差！）" border="0" width="35%"/>
+            </div>
+            <hr/>
+        </div>
+        <div style="background-color: aqua">
+            <br>
+            <p align="center">鱼缸生态系统数据</p>
+            <p align="center">水温：{{ temperature }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;水位：{{ water_deep }}</p>
+            <p align="center">水清澈度：{{ water_tmd }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;鱼状态：{{ fish_status }}</p>
+            <br><br><br>
+        </div>
+    </body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>贪吃蛇</title>
+    <style>
+    	*{padding: 0; margin: 0;}
+    	canvas { background: #eee; display: block; margin: 0 auto;}
+        .text {width:450px; text-align: center; margin: auto; color:#FF0000; font-size: 20px;}
+    </style>
+</head>
+<body>
+    <p id='hint' class="text" style="font-size: 15px; color: #FF8B21 "></p>
+    <p id='cz' class="text" style="font-size: 15px; color: #1269ff "></p>
+    <canvas id="myCanvas" width="60" height="60"></canvas>
+    <p id="a1" class="text"></p>
+    <p id="a2" class="text"></p>
+    <p id='a3' class="text"></p>
+    <script>
+
+    // 获取网页页面元素
+    var canvas = document.getElementById('myCanvas');
+    var inf = [document.getElementById('a1'), document.getElementById('a2'), document.getElementById('a3')];
+    var hint = document.getElementById('hint');
+    var ctx = canvas.getContext('2d');
+    // 配置
+    var max_x        = 20;
+    var max_y        = 20;
+    var old_speed    = 62;
+    var snake_len    = [3, 3];
+    var two_snakes   = true;
+    var head_color   = ['#0000FF', '#FF0000'];
+    var body_color   = ['#2f91ff', '#ff5234'];
+    var bk_color     = '#59DD90';
+    var bkline_color = '#00FFFF';
+    var food_color   = '#fff717';
+    var line_color   = [body_color[0], body_color[1]];
+    var line_size    = 1;
+    var rect_size    = 25;
+    var player_speed = 300;
+    var auto         = [true, true];
+    var MAX          = 100000;
+    // 全局变量
+    var snake = new Array(max_x);
+    var vist  = new Array(max_x);
+    var headx, heady, foodx, foody, endx, endy;
+    var movex, movey;
+    var speed = old_speed;
+    var eat_num = 0, game_stop = false;
+    var touch_food = [0, 0], over_cnt = 0;
+    var game_over = 0, press = [0, 0], timer;
+
+    // 初始化全局数据
+    function initData() {
+        touch_food = [0, 0];
+        headx = []; heady = [];
+        endx = []; endy = [];
+        press = [0, 0];
+        movex = [1, -1];    movey = [0, 0];
+        eat_num = [0, 0];   speed = old_speed;
+        over_cnt = 0; game_over = 0;
+        for (var i = 0; i < max_x; i++) {
+            snake[i] = new Array(max_y);
+            vist[i] = new Array(max_y);
+        }
+        // 初始化记录蛇位置的数组
+        for (i = 0; i < max_x; i++)
+            for (var j = 0; j < max_y; j++)
+                snake[i][j] = 0;
+    }
+
+    // 初始化蛇
+    function initSnake(s) {
+        for (var i = 1; i <= snake_len[s]; i++) {
+            if (s) {
+                snake[max_x-i][parseInt(max_y/2)] = -i;
+                drawRect(max_x-i, parseInt(max_y/2), body_color[s]);
+            } else {
+                snake[i-1][parseInt(max_y/2)] = i;
+                drawRect(i-1, parseInt(max_y/2), body_color[s]);
+            }
+            if (i > 1) {
+                s ? drawLine(max_x-i, parseInt(max_y/2), max_x-i+1, parseInt(max_y/2), line_color[s]) :
+                    drawLine(i-1, parseInt(max_y/2), i-2, parseInt(max_y/2), line_color[s]);
+            }
+        }
+        s ? (headx[s] = max_x-i+1) : (headx[s] = i-2);
+        heady[s] = parseInt(max_y/2);
+        // 绘制蛇头
+        drawRect(headx[s], heady[s], head_color[s]);
+    }
+
+    // 生成食物
+    function food() {
+        var x, y,cn = 0;
+        do {
+            x = Math.floor(Math.random()*(max_x-2)) + 1;
+            y = Math.floor(Math.random()*(max_y-2)) + 1;
+            // 当超长时间都不能生成食物，说明已无法生成食物，蛇已占满区域，游戏胜利
+            if (++cn > 400) {
+                game_over = 3;
+                return;
+            }
+        // 生成的食物与蛇重合，则重新生成食物
+        } while (snake[x][y]);
+        foodx = x; foody = y;
+        drawRect(x, y, food_color);
+    }
+
+    // 蛇转向 dir：方向  auto：是否是自动模式（该模式下，会使蛇立即死亡的走法不会执行）
+    function turn(s, dir) {
+        if (dir === 0 && movex[s] !== 1 && (!auto[s] || headx[s]-1 >= 0 && !snake[headx[s]-1][heady[s]]))
+            movex[s] = -1, movey[s] = 0;  // 向左
+        else if (dir === 1 && movey[s] !== 1 && (!auto[s] || heady[s]-1 >= 0 && !snake[headx[s]][heady[s]-1]))
+            movex[s] = 0, movey[s] = -1;  // 向上
+        else if (dir === 2 && movex[s] !== -1 && (!auto[s] || headx[s]+1 < max_x && !snake[headx[s]+1][heady[s]]))
+            movex[s] = 1 ,movey[s] = 0;   // 向右
+        else if (dir === 3 && movey[s] !== -1 && (!auto[s] || heady[s]+1 < max_y && !snake[headx[s]][heady[s]+1]))
+            movex[s] = 0, movey[s] = 1;   // 向下
+        else return false;                // 转向失败（未执行相应转向）
+        return true;                      // 成功转向
+    }
+
+    // 移动蛇
+    function move(s) {
+        headx[s] += movex[s]; heady[s] += movey[s];
+        // 移动后的蛇死亡
+        if (heady[s] < 0 || heady[s] >= max_y || headx[s] < 0 || headx[s] >= max_x || snake[headx[s]][heady[s]])
+            game_over = 1;
+        if (!game_over)
+            snake[headx[s]][heady[s]] = snake[headx[s]-movex[s]][heady[s]-movey[s]]+(s?-1:1);
+        // 绘制新的蛇头
+        drawRect(headx[s]-movex[s], heady[s]-movey[s], body_color[s]);
+        drawRect(headx[s], heady[s], head_color[s]);
+        drawLine(headx[s], heady[s], headx[s]-movex[s], heady[s]-movey[s], line_color[s]);
+        var end2x, end2y, end3x, end3y;
+        // 移动后的蛇未吃到食物
+        if (heady[s] !== foody || headx[s] !== foodx) {
+            for (var i = 0; i < max_x; i++)
+                for (var j = 0; j < max_y; j++) {
+                    if (snake[i][j] === (s ? -1 : 1))
+                        endx[s] = i, endy[s] = j;
+                    else if (snake[i][j] === (s ? -2 : 2))
+                        end2x = i, end2y = j;
+                    else if (snake[i][j] === (s ? -3 : 3))
+                        end3x = i, end3y = j;
+                    if (!s && snake[i][j] > 0)
+                        snake[i][j]--;
+                    else if (s && snake[i][j] < 0)
+                        snake[i][j]++;
+                }
+            // 绘制蛇尾
+            drawRect(endx[s], endy[s], bk_color);
+            drawRect(end2x, end2y, bk_color);
+            drawLine(endx[s], endy[s], end2x, end2y, bkline_color);
+            drawTail(end2x, end2y, end3x, end3y, body_color[s]);
+        // 移动后的蛇吃到食物
+        } else {
+            food();
+            eat_num[s]++; touch_food[s] = 0;
+            press[s] = (1.*(eat_num[s])/(max_y*max_x-snake_len[s])*100);
+            inf[s].innerHTML = (s ? '红' : '蓝') +'蛇长：' + (eat_num[s] + snake_len[s]) + ' | 完成度：' + press[s].toFixed(2) + '%';
+            inf[2].innerHTML = '总完成度：' + (press[0] + press[1]).toFixed(2) + '%';
+        }
+    }
+
+    // 游戏结束
+    function gameOver() {
+        var sstr = ['蓝', '红'];
+        var sdr = ['', '挑战失败！蛇死亡！', '挑战失败！无法吃到食物！', '挑战成功！'];
+        var spre = '蛇蛇长：', strr = '游戏结束！ ';
+        var win = eat_num[0] - eat_num[1] < 0 ? 1 : 0;
+        var len = [eat_num[0] + snake_len[0], eat_num[1] + snake_len[1]];
+        if (two_snakes)
+            alert(strr + sstr[win] + '蛇获胜！\n' + sstr[0] + spre + len[0] + '\n' + sstr[1] + spre + len[1]);
+        else
+            alert(strr + sdr[game_over] + '完成度：' + press[0].toFixed(2) + '%');
+        // 重新启动游戏
+        runGame();
+    }
+
+    // 绘制方块
+    function drawRect(x, y, color) {
+        ctx.beginPath();
+        ctx.rect((x + 1)*rect_size + line_size, (y + 1)*rect_size + line_size,
+            rect_size - 2*line_size, rect_size - 2*line_size);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    // 绘线
+    function drawLine(x1, y1, x2, y2, color) {
+        var mx, my, w, h;
+        if (x1 === x2) {
+            mx = (x1 + 1)*rect_size + line_size;
+            my = rect_size + (y1 > y2 ? y1 : y2)*rect_size - line_size;
+            w = rect_size - 2*line_size; h = line_size*2;
+        } else {
+            my = (y1 + 1)*rect_size + line_size;
+            mx = rect_size + (x1 > x2 ? x1 : x2)*rect_size - line_size;
+            h = rect_size - 2*line_size; w = line_size*2;
+        }
+        ctx.beginPath();
+        ctx.rect(mx, my, w, h);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    // 绘制蛇尾
+    function drawTail(x1, y1, x2, y2, color) {
+        var x, y, s, e;
+        if (x1 - x2 < 0) {
+            x = (x1 + 2)*rect_size - line_size, y = (y1 + 1)*rect_size + rect_size/2;
+            s = Math.PI/2, e = -Math.PI/2;
+        } else if (x1 - x2 > 0) {
+            x = (x2 + 2)*rect_size + line_size, y = (y1 + 1)*rect_size + rect_size/2;
+            s = -Math.PI/2, e = Math.PI/2;
+        } else if (y1 - y2 < 0) {
+            x = (x1 + 1) * rect_size + rect_size/2, y = (y1 + 2)*rect_size - line_size;
+            s = Math.PI, e = 0;
+        } else if (y1 - y2 > 0) {
+            x = (x1 + 1) * rect_size + rect_size/2, y = (y2 + 2)*rect_size + line_size;
+            s = 0, e = Math.PI;
+        }
+        ctx.beginPath();
+        ctx.arc(x, y, rect_size/2 - line_size, s, e);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    // 显示界面提示
+    function showHint() {
+        var st;
+        st = auto ? '自动模式':'手动模式';
+        hint.innerHTML = '| 界面尺寸：'+max_x+'X'+max_y+' | 模式：'+st+' | 速度：'+speed+' | '
+    }
+
+    // 绘制界面
+    function drawFace() {
+        var cz = document.getElementById('cz');
+        canvas.width = (max_x + 2) * rect_size;
+        canvas.height = (max_y + 2) * rect_size;
+        showHint();
+        cz.innerHTML = "上下左右：移动 | 空格：暂停/继续 | 回车：模式切换 | +-：加/减速 | W：双/单蛇";
+        inf[0].innerHTML = '蓝蛇长：'+(eat_num[0]+snake_len[0])+' | 完成度：' +press[0].toFixed(2)+ '%';
+        if (two_snakes)
+            inf[1].innerHTML = '红蛇长：'+(eat_num[1]+snake_len[1])+' | 完成度：' +press[0].toFixed(2) + '%';
+        else inf[1].innerHTML = '';
+        inf[2].innerHTML = '总完成度：' + press[0].toFixed(2) + '%';
+        ctx.beginPath();
+        ctx.rect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#00FF00';
+        ctx.fill();
+        ctx.closePath();
+        ctx.beginPath();
+        ctx.rect(rect_size, rect_size, canvas.width-2*rect_size, canvas.height-2*rect_size);
+        ctx.fillStyle = bkline_color;
+        ctx.fill();
+        ctx.closePath();
+        // 填充方块
+        for (var x = 0; x < max_x; x++)
+            for (var y = 0; y < max_y; y++)
+                drawRect(x, y, bk_color)
+    }
+
+    // 自动转向
+    function autoTurn(s) {
+        var flen = new Array(4), hlen = new Array(4);
+        // 计算头到食物的最短距离                 头到尾的最短距离
+        flen[0] = [0, bfs(s, 0, foodx, foody)]; hlen[0] = [0, bfs(s, 0, endx[s], endy[s])];
+        flen[1] = [1, bfs(s, 1, foodx, foody)]; hlen[1] = [1, bfs(s, 1, endx[s], endy[s])];
+        flen[2] = [2, bfs(s, 2, foodx, foody)]; hlen[2] = [2, bfs(s, 2, endx[s], endy[s])];
+        flen[3] = [3, bfs(s, 3, foodx, foody)]; hlen[3] = [3, bfs(s, 3, endx[s], endy[s])];
+        // 将各个方向上的头到食物的最短距离从小到大排序
+        flen.sort(function (m, n) {return m[1] - n[1]});
+        // 既能找到食物，也能找到尾巴，走距食物最近的方向
+        hlen[flen[0][0]][1] < MAX && flen[0][1] < MAX && turn(s, flen[0][0]) ||
+        hlen[flen[1][0]][1] < MAX && flen[1][1] < MAX && turn(s, flen[1][0]) ||
+        hlen[flen[2][0]][1] < MAX && flen[2][1] < MAX && turn(s, flen[2][0]) ||
+        hlen[flen[3][0]][1] < MAX && flen[3][1] < MAX && turn(s, flen[3][0]) ||
+        // 找不到食物，但找得到尾巴，按能找到尾巴的方向走
+        hlen[0][1] < MAX && turn(s, hlen[0][0]) || hlen[1][1] < MAX && turn(s, hlen[1][0]) ||
+        hlen[2][1] < MAX && turn(s, hlen[2][0]) || hlen[3][1] < MAX && turn(s, hlen[3][0]) ||
+        // 既找不到食物，又找不到尾巴，听天由命
+        turn(s, 0, 1) || turn(s, 1) || turn(s, 2) || turn(s, 3);
+        // 记录蛇接近食物的次数
+        for (var i = 0; i < 4; i++)
+            if (flen[i][1] === 0)
+                touch_food[s]++;
+        // 太多次的接近食物又未吃到，说明蛇吃不到该食物，放弃游戏
+        if (touch_food[s] > 8)
+            game_over = 2;
+    }
+
+    // 通过广度优先搜索计算按某方向走时新的蛇头到(ex, ey)的最短距离
+    function bfs(s, dir, ex, ey) {
+        var hx, hy;
+        switch (dir) {
+            case 0: hx = headx[s]-1; hy = heady[s]; break;
+            case 1: hx = headx[s]; hy = heady[s]-1; break;
+            case 2: hx = headx[s]+1; hy = heady[s]; break;
+            case 3: hx = headx[s]; hy = heady[s]+1; break;
+        }
+        // 新的蛇头会导致蛇死亡，认为没有路径，返回最大值
+        if (hx < 0 || hx >= max_x || hy < 0 || hy >= max_y || snake[hx][hy])
+            return MAX;
+        var queue = new Array(0);
+        var x, y, nx, ny;
+        var dx = [1, 0, -1, 0];
+        var dy = [0, 1, 0, -1];
+        for (var i = 0; i < max_x; i++)
+            for (var j = 0; j < max_y; j++)
+                vist[i][j] = -1;
+        // 开始广度优先搜索
+        vist[hx][hy] = 0;
+        queue.push([hx, hy]);
+        while (queue.length) {
+            [x, y] = queue.shift();
+            if (x === ex && y === ey)
+                return vist[x][y];
+            for (i = 0; i < 4; i++) {
+                nx = x + dx[i]; ny = y + dy[i];
+                if (nx === ex && ny === ey)
+                    return vist[x][y] + 1;
+                if (nx >= 0 && nx < max_x && ny >=0 && ny < max_y && !snake[nx][ny] && vist[nx][ny] === -1)
+                    queue.push([nx, ny]), vist[nx][ny] = vist[x][y] + 1;
+            }
+        }
+        return MAX;
+    }
+
+    // 绑定按键
+    document.onkeydown = function (e) {
+        var re = e || window.event;
+        var keycode = re ? re.keyCode : 0;
+        // 上下左右：在手动模式下控制蛇的移动
+        if (keycode > 36 && keycode < 41 && !auto) {
+            turn(keycode - 37);
+        }
+        // 空格：暂停/继续
+        if (keycode === 32)
+            game_stop = !game_stop;
+        // 加速，使蛇移动加快
+        else if (keycode === 107) {
+            if (speed < 200) speed >= 10 ? speed -= 10:0;
+            else             speed -= 100;
+            clearInterval(timer);
+            timer = setInterval(timeOn, speed);
+            showHint();
+        // 减速，使蛇的移动减慢
+        } else if (keycode === 109) {
+            if (speed > 200)  speed < 5000 ? speed += 100:0;
+            else speed += 10;
+            clearInterval(timer);
+            timer = setInterval(timeOn, speed);
+            showHint();
+        // 回车：切换模式
+        } else if (keycode === 13) {
+            if (auto[0]) {
+                speed = player_speed;
+                auto[0] = false;
+            } else {
+                speed = old_speed;
+                auto[0] = true;
+            }
+            clearInterval(timer);
+            timer = setInterval(timeOn, speed);
+            showHint();
+        // 双蛇
+        } else if (keycode === 87) {
+            two_snakes = !two_snakes;
+            runGame();
+        }
+
+    };
+
+    // 开启游戏
+    function runGame() {
+        initData()
+        drawFace();
+        initSnake(0);
+        if (two_snakes)
+            initSnake(1);
+        food();
+    }
+
+    // 计时时间到，开始移动蛇
+    function timeOn() {
+        // 暂停被触发了
+        if (game_stop) return;
+        // 游戏结束
+        if (game_over) {
+            over_cnt++;
+            if (over_cnt === 2) gameOver();
+            return;
+        }
+        // 在自动模式下让蛇自动转向
+        if (auto[0])   autoTurn(0);
+        move(0);
+        if (two_snakes && auto[1])   autoTurn(1);
+        if (two_snakes)              move(1);
+    }
+
+    // 启动游戏
+    runGame();
+    timer = setInterval(timeOn, speed);
+
+    </script>
+</body>
+</html>
